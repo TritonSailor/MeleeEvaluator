@@ -23,5 +23,8 @@ public:
 	virtual void NativePostEvaluateAnimation() override;
 
 protected:
+	UFUNCTION(BlueprintPure, Category = MeleeEvaluator)
+	FORCEINLINE UMeleeEvaluatorComponent* GetMeleeEvaluatorComponent() const { return MeleeComp.IsValid() ? MeleeComp.Get() : nullptr; }
+
 	TWeakObjectPtr<UMeleeEvaluatorComponent> MeleeComp;
 };

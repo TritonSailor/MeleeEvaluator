@@ -46,46 +46,10 @@ void FAnimNode_MeleeEvaluatorNode::UpdateAssetPlayer(const FAnimationUpdateConte
 		return;
 	}
 
-	if (!MeleeComp.IsValid())
-	{
-		USkeletalMeshComponent* const SkelComp = Context.AnimInstanceProxy->GetSkelMeshComponent();
-		if (SkelComp && SkelComp->GetOwner() && SkelComp->GetOwner()->Implements<UMeleeEvaluatorInterface>())
-		{
-			MeleeComp = IMeleeEvaluatorInterface::Execute_GetMeleeEvaluatorComponent(SkelComp->GetOwner());
-		}
+	// This will set the explicit time, create tick record, and disable bReinitialized
+	//FAnimNode_SequenceEvaluator::UpdateAssetPlayer(Context);
 
-		if (!MeleeComp.IsValid())
-		{
-			return;
-		}
-	}
-
-	const UWorld* const World = MeleeComp->GetWorld();
-	const float WorldTime = World->GetTimeSeconds();
-
-	if (MeleeComp->bRestartPending)
-	{
-		InternalTimeAccumulator = 0.f;
-		MeleeComp->bRestartPending = false;
-	}
-
-	if (MeleeComp->bStarted)
-	{
-		if (InternalTimeAccumulator >= MeleeComp->GetSequenceLength())
-		{
-			InternalTimeAccumulator = 0.f;
-			MeleeComp->StopMelee();
-		}
-	}
-	else
-	{
-		if (MeleeComp->GetSequence() && WorldTime >= MeleeComp->StartTime)
-		{
-			MeleeComp->bStarted = true;
-			InternalTimeAccumulator = 0.f;
-			Sequence = MeleeComp->GetSequence();
-		}
-	}
+	ExplicitTime = InternalTimeAccumulator;
 
 	RemainingTime += Context.GetDeltaTime();
 
@@ -100,10 +64,11 @@ void FAnimNode_MeleeEvaluatorNode::Evaluate_AnyThread(FPoseContext& Output)
 
 	if (!bValidProxy || !MeleeComp.IsValid())
 	{
+		Output.ResetToRefPose();
 		return;
 	}
 
-	if (MeleeComp->bStarted)
+	if (MeleeComp->IsEvaluating())
 	{
 		TArray<FHitResult> Hits;
 
@@ -168,8 +133,55 @@ void FAnimNode_MeleeEvaluatorNode::Melee_AnyThread(FPoseContext& Output, float I
 
 void FAnimNode_MeleeEvaluatorNode::PreUpdate(const UAnimInstance* InAnimInstance)
 {
+	if (!bValidProxy) 
+	{
+		return; 
+	}
+
 	const USkeletalMeshComponent* SkelComp = InAnimInstance->GetSkelMeshComponent();
 	const UWorld* World = SkelComp->GetWorld();
 	check(World->GetWorldSettings());
 	TimeDilation = World->GetWorldSettings()->GetEffectiveTimeDilation();
+
+	if (!MeleeComp.IsValid())
+	{
+		if (SkelComp->GetOwner() && SkelComp->GetOwner()->Implements<UMeleeEvaluatorInterface>())
+		{
+			MeleeComp = IMeleeEvaluatorInterface::Execute_GetMeleeEvaluatorComponent(SkelComp->GetOwner());
+		}
+
+		if (!MeleeComp.IsValid())
+		{
+			return;
+		}
+	}
+
+	const float WorldTime = World->GetTimeSeconds();
+
+	if (MeleeComp->bRestartPending)
+	{
+		InternalTimeAccumulator = 0.f;
+		MeleeComp->bRestartPending = false;
+	}
+
+	// Stop melee
+	if (MeleeComp->bStarted)
+	{
+		if (InternalTimeAccumulator >= MeleeComp->GetSequenceLength())
+		{
+			InternalTimeAccumulator = 0.f;
+			MeleeComp->StopMelee();
+		}
+	}
+	// Start melee
+	else
+	{
+		if (MeleeComp->GetSequence() && WorldTime >= MeleeComp->StartTime)
+		{
+			MeleeComp->bStarted = true;
+			InternalTimeAccumulator = 0.f;
+			Sequence = MeleeComp->GetSequence();
+			//OverrideAsset(MeleeComp->GetSequence());
+		}
+	}
 }

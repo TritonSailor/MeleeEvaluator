@@ -10,7 +10,7 @@ class UMeleeEvaluatorComponent : public UActorComponent
 
 public:
 	UFUNCTION(BlueprintCallable, Category = MeleeEvaluator)
-	void StartMelee(UAnimSequenceBase* NewAnim)
+	void StartMelee(UAnimSequenceBase* NewAnim, float AnimBlendOutTime = 0.2f)
 	{
 		bRestartPending = IsAttacking();
 		if (bRestartPending) { bStarted = false; }
@@ -18,6 +18,7 @@ public:
 		Sequence = NewAnim;
 		StartTime = GetWorld()->GetTimeSeconds();
 		EndTime = GetWorld()->GetTimeSeconds() + GetSequenceLength();
+		BlendOutTime = AnimBlendOutTime;
 	}
 
 	UFUNCTION(BlueprintCallable, Category = MeleeEvaluator)
@@ -40,9 +41,14 @@ public:
 	}
 
 	UFUNCTION(BlueprintPure, Category = MeleeEvaluator)
-	FORCEINLINE bool IsAttacking() const
+	bool IsAttacking() const
 	{
-		return Sequence != nullptr && bStarted && GetWorld()->GetTimeSeconds() >= StartTime && GetWorld()->GetTimeSeconds() <= EndTime;
+		return Sequence != nullptr && bStarted && GetWorld()->GetTimeSeconds() >= StartTime && GetWorld()->GetTimeSeconds() <= EndTime - BlendOutTime;
+	}
+
+	bool IsEvaluating() const
+	{
+		return bStarted && GetWorld()->GetTimeSeconds() <= EndTime;
 	}
 
 	FORCEINLINE UAnimSequenceBase* GetSequence() const { return Sequence; }
@@ -62,6 +68,7 @@ protected:
 public:
 	float StartTime;
 	float EndTime;
+	float BlendOutTime;
 	bool bStarted;
 	bool bRestartPending;
 
@@ -70,6 +77,7 @@ public:
 		: Sequence(nullptr)
 		, StartTime(-1.f)
 		, EndTime(-1.f)
+		, BlendOutTime(0.f)
 		, bStarted(false)
 	{}
 };
